@@ -16,19 +16,27 @@ const TIME_PERIODS = [
   { value: 30, label: 'Last 30 days' },
 ];
 
+const DATA_SOURCES = [
+  { value: 'all', label: 'All Sources' },
+  { value: 'ebird', label: 'eBird Only' },
+  { value: 'inaturalist', label: 'iNaturalist Only' },
+];
+
 export default function Home() {
   const [activeTab, setActiveTab] = useState('current');
   const [regionCode, setRegionCode] = useState('US-CA');
   const [days, setDays] = useState(7);
+  const [dataSource, setDataSource] = useState('all');
   const [currentBirds, setCurrentBirds] = useState([]);
   const [trends, setTrends] = useState([]);
   const [historicalData, setHistoricalData] = useState(null);
+  const [sources, setSources] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchData();
-  }, [activeTab, regionCode, days]);
+  }, [activeTab, regionCode, days, dataSource]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -36,12 +44,14 @@ export default function Home() {
 
     try {
       let url;
+      const sourceParam = dataSource !== 'all' ? `&source=${dataSource}` : '';
+      
       if (activeTab === 'current') {
-        url = `/api/birds/current?region_code=${regionCode}&days=${days}&limit=50`;
+        url = `/api/birds/current?region_code=${regionCode}&days=${days}&limit=50${sourceParam}`;
       } else if (activeTab === 'trends') {
         url = `/api/birds/trends?region_code=${regionCode}&days=${days}&limit=50`;
       } else if (activeTab === 'historical') {
-        url = `/api/birds/historical?region_code=${regionCode}&days=90`;
+        url = `/api/birds/historical?region_code=${regionCode}&days=90${sourceParam}`;
       }
 
       const response = await fetch(url);
@@ -53,10 +63,12 @@ export default function Home() {
 
       if (activeTab === 'current') {
         setCurrentBirds(data.birds || []);
+        setSources(data.sources || null);
       } else if (activeTab === 'trends') {
         setTrends(data || []);
       } else if (activeTab === 'historical') {
         setHistoricalData(data);
+        setSources(data.sources || null);
       }
     } catch (err) {
       setError(err.message);
@@ -169,6 +181,18 @@ export default function Home() {
                 </select>
               )}
 
+              <select
+                value={dataSource}
+                onChange={(e) => setDataSource(e.target.value)}
+                className="px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:outline-none"
+              >
+                {DATA_SOURCES.map(source => (
+                  <option key={source.value} value={source.value}>
+                    {source.label}
+                  </option>
+                ))}
+              </select>
+
               <button
                 onClick={fetchData}
                 className="px-6 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
@@ -176,6 +200,21 @@ export default function Home() {
                 Refresh
               </button>
             </div>
+
+            {/* Source Stats */}
+            {sources && (
+              <div className="flex gap-4 mb-6 text-sm">
+                <div className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full">
+                  eBird: {sources.ebird?.toLocaleString() || 0}
+                </div>
+                <div className="px-3 py-1 bg-green-100 text-green-800 rounded-full">
+                  iNaturalist: {sources.inaturalist?.toLocaleString() || 0}
+                </div>
+                <div className="px-3 py-1 bg-gray-100 text-gray-800 rounded-full">
+                  Total: {sources.total?.toLocaleString() || 0}
+                </div>
+              </div>
+            )}
 
             {/* Tabs */}
             <div className="flex border-b border-gray-200 mb-6">
@@ -319,7 +358,16 @@ export default function Home() {
 
           {/* Footer */}
           <footer className="text-center mt-8 text-white/80">
-            <p>Data powered by eBird</p>
+            <p>
+              Data powered by{' '}
+              <a href="https://ebird.org" target="_blank" rel="noopener noreferrer" className="underline hover:text-white">
+                eBird
+              </a>
+              {' '}and{' '}
+              <a href="https://inaturalist.org" target="_blank" rel="noopener noreferrer" className="underline hover:text-white">
+                iNaturalist
+              </a>
+            </p>
           </footer>
         </div>
       </main>

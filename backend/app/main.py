@@ -5,9 +5,9 @@ FastAPI application for BloomingSongs API
 from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc, and_
+from sqlalchemy import func, desc, and_, distinct
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import List, Optional, Literal
 import sys
 from pathlib import Path
 
@@ -19,13 +19,15 @@ from app.schemas import (
     BirdObservationResponse,
     BirdTrendResponse,
     CurrentBirdsResponse,
-    HistoricalDataResponse
+    HistoricalDataResponse,
+    SourceBreakdown,
+    DataSourceStats
 )
 
 app = FastAPI(
     title="BloomingSongs API",
-    description="API for bird singing activity and trends",
-    version="1.0.0"
+    description="API for bird singing activity and trends from eBird and iNaturalist",
+    version="1.1.0"
 )
 
 # CORS middleware
@@ -36,6 +38,24 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def get_source_breakdown(db: Session, base_query=None) -> SourceBreakdown:
+    """Get count of observations by source"""
+    if base_query is None:
+        ebird = db.query(func.count(BirdObservation.id)).filter(
+            BirdObservation.source.like('%ebird%')
+        ).scalar() or 0
+        inat = db.query(func.count(BirdObservation.id)).filter(
+            BirdObservation.source == 'inaturalist'
+        ).scalar() or 0
+    else:
+        # For subqueries, this is trickier - just return totals
+        ebird = 0
+        inat = 0
+    
+    total = ebird + inat
+    return SourceBreakdown(ebird=ebird, inaturalist=inat, total=total)
 
 
 @app.get("/")
@@ -55,16 +75,44 @@ def get_current_birds(
     region_code: Optional[str] = Query(None, description="Region code (e.g., US-CA)"),
     days: int = Query(7, description="Number of days to look back"),
     limit: int = Query(50, description="Maximum number of results"),
+    source: Optional[str] = Query(None, description="Filter by source: 'ebird', 'inaturalist', or 'all'"),
     db: Session = Depends(get_db)
 ):
     """
     Get current singing birds for a location or region
     
-    Returns birds observed in the specified time period, sorted by observation frequency
+    Returns birds observed in the specified time period, sorted by observation frequency.
+    Data is combined from eBird (breeding codes) and iNaturalist (audio recordings).
     """
     # Calculate date range
     end_date = datetime.utcnow()
     start_date = end_date - timedelta(days=days)
+    
+    # Build base filter for source breakdown
+    base_filters = [
+        BirdObservation.observation_date >= start_date,
+        BirdObservation.observation_date <= end_date
+    ]
+    
+    if region_code:
+        base_filters.append(BirdObservation.region_code == region_code)
+    
+    # Get source breakdown
+    ebird_count = db.query(func.count(BirdObservation.id)).filter(
+        *base_filters,
+        BirdObservation.source.like('%ebird%')
+    ).scalar() or 0
+    
+    inat_count = db.query(func.count(BirdObservation.id)).filter(
+        *base_filters,
+        BirdObservation.source == 'inaturalist'
+    ).scalar() or 0
+    
+    sources = SourceBreakdown(
+        ebird=ebird_count,
+        inaturalist=inat_count,
+        total=ebird_count + inat_count
+    )
     
     # Build query
     query = db.query(
@@ -76,6 +124,13 @@ def get_current_birds(
         BirdObservation.observation_date >= start_date,
         BirdObservation.observation_date <= end_date
     )
+    
+    # Apply source filter
+    if source == 'ebird':
+        query = query.filter(BirdObservation.source.like('%ebird%'))
+    elif source == 'inaturalist':
+        query = query.filter(BirdObservation.source == 'inaturalist')
+    # else 'all' or None - include all sources
     
     # Apply location filters
     if lat and lon:
@@ -110,7 +165,8 @@ def get_current_birds(
         "birds": birds,
         "period_start": start_date.isoformat(),
         "period_end": end_date.isoformat(),
-        "total_species": len(birds)
+        "total_species": len(birds),
+        "sources": sources
     }
 
 
@@ -223,14 +279,44 @@ def get_historical_data(
     species_code: Optional[str] = Query(None, description="Species code to filter"),
     region_code: Optional[str] = Query(None, description="Region code"),
     days: int = Query(90, description="Number of days to look back"),
+    source: Optional[str] = Query(None, description="Filter by source: 'ebird', 'inaturalist', or 'all'"),
     db: Session = Depends(get_db)
 ):
     """
-    Get historical data over time for trend visualization
+    Get historical data over time for trend visualization.
+    Data is combined from eBird and iNaturalist sources.
     """
     # Calculate date range
     end_date = datetime.utcnow()
     start_date = end_date - timedelta(days=days)
+    
+    # Build base filter for source breakdown
+    base_filters = [
+        BirdObservation.observation_date >= start_date,
+        BirdObservation.observation_date <= end_date
+    ]
+    
+    if region_code:
+        base_filters.append(BirdObservation.region_code == region_code)
+    if species_code:
+        base_filters.append(BirdObservation.species_code == species_code)
+    
+    # Get source breakdown
+    ebird_count = db.query(func.count(BirdObservation.id)).filter(
+        *base_filters,
+        BirdObservation.source.like('%ebird%')
+    ).scalar() or 0
+    
+    inat_count = db.query(func.count(BirdObservation.id)).filter(
+        *base_filters,
+        BirdObservation.source == 'inaturalist'
+    ).scalar() or 0
+    
+    sources = SourceBreakdown(
+        ebird=ebird_count,
+        inaturalist=inat_count,
+        total=ebird_count + inat_count
+    )
     
     # Build query
     query = db.query(
@@ -242,6 +328,12 @@ def get_historical_data(
         BirdObservation.observation_date >= start_date,
         BirdObservation.observation_date <= end_date
     )
+    
+    # Apply source filter
+    if source == 'ebird':
+        query = query.filter(BirdObservation.source.like('%ebird%'))
+    elif source == 'inaturalist':
+        query = query.filter(BirdObservation.source == 'inaturalist')
     
     if species_code:
         query = query.filter(BirdObservation.species_code == species_code)
@@ -272,7 +364,8 @@ def get_historical_data(
         "data": daily_data,
         "period_start": start_date.isoformat(),
         "period_end": end_date.isoformat(),
-        "total_days": days
+        "total_days": days,
+        "sources": sources
     }
 
 
@@ -317,6 +410,49 @@ def get_top_birds(
         }
         for r in results
     ]
+
+
+@app.get("/api/birds/sources", response_model=DataSourceStats)
+def get_data_sources(
+    db: Session = Depends(get_db)
+):
+    """
+    Get statistics about data sources
+    
+    Returns counts of observations from each source (eBird, iNaturalist)
+    """
+    total = db.query(func.count(BirdObservation.id)).scalar() or 0
+    ebird = db.query(func.count(BirdObservation.id)).filter(
+        BirdObservation.source.like('%ebird%')
+    ).scalar() or 0
+    inat = db.query(func.count(BirdObservation.id)).filter(
+        BirdObservation.source == 'inaturalist'
+    ).scalar() or 0
+    vocal = db.query(func.count(BirdObservation.id)).filter(
+        BirdObservation.is_vocal == 1
+    ).scalar() or 0
+    
+    unique_species = db.query(
+        func.count(distinct(BirdObservation.species_code))
+    ).scalar() or 0
+    
+    regions = [r[0] for r in db.query(
+        distinct(BirdObservation.region_code)
+    ).filter(BirdObservation.region_code.isnot(None)).all()]
+    
+    # Get last update time
+    last_obs = db.query(func.max(BirdObservation.fetched_at)).scalar()
+    last_updated = last_obs.isoformat() if last_obs else None
+    
+    return {
+        "total_observations": total,
+        "ebird_observations": ebird,
+        "inaturalist_observations": inat,
+        "vocal_observations": vocal,
+        "unique_species": unique_species,
+        "regions": regions,
+        "last_updated": last_updated
+    }
 
 
 @app.get("/api/health")
