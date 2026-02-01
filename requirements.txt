@@ -1,0 +1,17 @@
+# Backend dependencies
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+pydantic>=2.10.0
+pydantic-settings>=2.6.0
+sqlalchemy>=2.0.36
+alembic>=1.14.0
+python-dotenv>=1.0.1
+requests>=2.32.0
+ebird-api>=4.0.0
+python-dateutil>=2.9.0
+
+# Optional: for advanced analytics (not required for core functionality)
+# pandas>=2.2.0  # Requires Python 3.13 compatible version
+# numpy>=2.0.0
+# scipy>=1.13.0
+# scikit-learn>=1.4.0

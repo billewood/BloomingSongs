@@ -1,0 +1,11 @@
+# Backend dependencies for Render deployment
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+sqlalchemy>=2.0.25
+alembic>=1.13.0
+python-dotenv>=1.0.0
+requests>=2.31.0
+ebird-api>=4.0.0
+python-dateutil>=2.8.2
