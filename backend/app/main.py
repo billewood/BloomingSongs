@@ -46,8 +46,9 @@ def get_source_breakdown(db: Session, base_query=None) -> SourceBreakdown:
         ebird = db.query(func.count(BirdObservation.id)).filter(
             BirdObservation.source.like('%ebird%')
         ).scalar() or 0
+        # iNaturalist includes both API data and iNatSounds dataset
         inat = db.query(func.count(BirdObservation.id)).filter(
-            BirdObservation.source == 'inaturalist'
+            BirdObservation.source.in_(['inaturalist', 'inatsounds'])
         ).scalar() or 0
     else:
         # For subqueries, this is trickier - just return totals
@@ -105,7 +106,7 @@ def get_current_birds(
     
     inat_count = db.query(func.count(BirdObservation.id)).filter(
         *base_filters,
-        BirdObservation.source == 'inaturalist'
+        BirdObservation.source.in_(['inaturalist', 'inatsounds'])
     ).scalar() or 0
     
     sources = SourceBreakdown(
@@ -129,7 +130,7 @@ def get_current_birds(
     if source == 'ebird':
         query = query.filter(BirdObservation.source.like('%ebird%'))
     elif source == 'inaturalist':
-        query = query.filter(BirdObservation.source == 'inaturalist')
+        query = query.filter(BirdObservation.source.in_(['inaturalist', 'inatsounds']))
     # else 'all' or None - include all sources
     
     # Apply location filters
@@ -309,7 +310,7 @@ def get_historical_data(
     
     inat_count = db.query(func.count(BirdObservation.id)).filter(
         *base_filters,
-        BirdObservation.source == 'inaturalist'
+        BirdObservation.source.in_(['inaturalist', 'inatsounds'])
     ).scalar() or 0
     
     sources = SourceBreakdown(
@@ -333,7 +334,7 @@ def get_historical_data(
     if source == 'ebird':
         query = query.filter(BirdObservation.source.like('%ebird%'))
     elif source == 'inaturalist':
-        query = query.filter(BirdObservation.source == 'inaturalist')
+        query = query.filter(BirdObservation.source.in_(['inaturalist', 'inatsounds']))
     
     if species_code:
         query = query.filter(BirdObservation.species_code == species_code)
@@ -425,8 +426,9 @@ def get_data_sources(
     ebird = db.query(func.count(BirdObservation.id)).filter(
         BirdObservation.source.like('%ebird%')
     ).scalar() or 0
+    # iNaturalist includes both API data and iNatSounds dataset
     inat = db.query(func.count(BirdObservation.id)).filter(
-        BirdObservation.source == 'inaturalist'
+        BirdObservation.source.in_(['inaturalist', 'inatsounds'])
     ).scalar() or 0
     vocal = db.query(func.count(BirdObservation.id)).filter(
         BirdObservation.is_vocal == 1

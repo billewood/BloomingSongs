@@ -12,11 +12,11 @@ ENV/
 dist/
 build/
 
-# Database
+# Database and data files
 *.db
 *.sqlite
 *.sqlite3
-data/*.db
+data/
 
 # Environment variables
 .env

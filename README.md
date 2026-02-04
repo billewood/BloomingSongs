@@ -134,8 +134,21 @@ Data from [eBird](https://ebird.org), the world's largest biodiversity-related c
 - C, CC: Courtship
 - OS: Other Singing
 
-### iNaturalist
-Data from [iNaturalist](https://www.inaturalist.org), a citizen science platform for nature observations. We track bird observations that include **audio recordings**, which strongly indicates the bird was singing or vocalizing.
+### iNaturalist (via iNatSounds Dataset)
+Data from the [iNatSounds Dataset](https://github.com/visipedia/inat_sounds), a curated collection of **230,000 audio recordings** from iNaturalist. We use this bulk dataset instead of the API because:
+- No API rate limits (API caps calls per hour)
+- Pre-curated bird vocalizations (189,662 bird recordings)
+- Small metadata files (~22 MB) vs full audio (~133 GB)
+
+The dataset includes recordings from **3,846 bird species** with location and date metadata.
+
+## Data Sizes
+
+| Source | Size | Notes |
+|--------|------|-------|
+| eBird API | ~1 MB | Real-time checklist data |
+| iNatSounds metadata | ~22 MB | Annotations only, not audio |
+| SQLite database | ~48 MB | All processed observations |
 
 ## License
 
